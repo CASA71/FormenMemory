@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Formen-Memory</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, sans-serif;
+      color: #203047;
+      background: #f2f6ff;
+      text-align: center;
+    }
+
+    h1 { margin-bottom: 8px; }
+
+    .info {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin: 18px 0;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    #neustart {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      color: white;
+      background: #356ae6;
+    }
+
+    #neustart:hover { background: #2454c4; }
+
+    #spielbrett {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(65px, 110px));
+      gap: 12px;
+      justify-content: center;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .karte {
+      aspect-ratio: 1;
+      border: 3px solid #356ae6;
+      border-radius: 14px;
+      background: #356ae6;
+      color: white;
+      font-size: 2rem;
+      display: grid;
+      place-items: center;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    .karte:hover { transform: scale(1.04); }
+
+    .karte.offen,
+    .karte.gefunden {
+      background: white;
+      color: #203047;
+    }
+
+    .karte.gefunden {
+      border-color: #45a878;
+      cursor: default;
+    }
+
+    .form {
+      width: 62%;
+      height: 62%;
+    }
+
+    #meldung {
+      min-height: 1.5em;
+      margin-top: 18px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 400px) {
+      body { padding: 16px; }
+      #spielbrett { gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Formen-Memory</h1>
+  <p>Finde alle passenden Formenpaare!</p>
+
+  <div class="info">
+    <span>Versuche: <strong id="versuche">0</strong></span>
+    <button id="neustart" type="button">Neu starten</button>
+  </div>
+
+  <main id="spielbrett" aria-label="Memory-Spielbrett"></main>
+  <p id="meldung" aria-live="polite"></p>
+
+  <script>
+    const formen = [
+      { name: "Kreis", svg: '<circle cx="50" cy="50" r="36" fill="#f3bb42"/>' },
+      { name: "Dreieck", svg: '<polygon points="50,12 90,86 10,86" fill="#ef6a5b"/>' },
+      { name: "Quadrat", svg: '<rect x="17" y="17" width="66" height="66" fill="#55a7e8"/>' },
+      { name: "Rechteck", svg: '<rect x="10" y="27" width="80" height="46" fill="#8b70d6"/>' },
+      { name: "Raute", svg: '<polygon points="50,10 88,50 50,90 12,50" fill="#44b889"/>' },
+      { name: "Fünfeck", svg: '<polygon points="50,10 90,40 75,88 25,88 10,40" fill="#e887bd"/>' },
+      { name: "Sechseck", svg: '<polygon points="27,12 73,12 92,50 73,88 27,88 8,50" fill="#e98b3b"/>' },
+      { name: "Parallelogramm", svg: '<polygon points="30,18 90,18 70,82 10,82" fill="#48bfc4"/>' }
+    ];
+
+    const brett = document.getElementById("spielbrett");
+    const anzeigeVersuche = document.getElementById("versuche");
+    const meldung = document.getElementById("meldung");
+
+    let ersteKarte = null;
+    let gesperrt = false;
+    let versuche = 0;
+    let gefundenePaare = 0;
+
+    function mischen(liste) {
+      for (let i = liste.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [liste[i], liste[j]] = [liste[j], liste[i]];
+      }
+      return liste;
+    }
+
+    function karteErstellen(form) {
+      const karte = document.createElement("button");
+      karte.type = "button";
+      karte.className = "karte";
+      karte.setAttribute("aria-label", "Verdeckte Karte");
+      karte.dataset.name = form.name;
+      karte.dataset.svg = form.svg;
+      karte.addEventListener("click", () => aufdecken(karte));
+      return karte;
+    }
+
+    function aufdecken(karte) {
+      if (gesperrt || karte.classList.contains("offen") ||
+          karte.classList.contains("gefunden")) return;
+
+      karte.classList.add("offen");
+      karte.innerHTML = `<svg class="form" viewBox="0 0 100 100"
+        aria-hidden="true">${karte.dataset.svg}</svg>`;
+      karte.setAttribute("aria-label", karte.dataset.name);
+
+      if (!ersteKarte) {
+        ersteKarte = karte;
+        return;
+      }
+
+      versuche++;
+      anzeigeVersuche.textContent = versuche;
+
+      if (ersteKarte.dataset.name === karte.dataset.name) {
+        ersteKarte.classList.add("gefunden");
+        karte.classList.add("gefunden");
+        ersteKarte = null;
+        gefundenePaare++;
+
+        if (gefundenePaare === formen.length) {
+          meldung.textContent = `Geschafft! Du hast alle Paare in ${versuche} Versuchen gefunden.`;
+        }
+      } else {
+        gesperrt = true;
+        const vorherigeKarte = ersteKarte;
+        ersteKarte = null;
+
+        setTimeout(() => {
+          [vorherigeKarte, karte].forEach(k => {
+            k.classList.remove("offen");
+            k.innerHTML = "";
+            k.setAttribute("aria-label", "Verdeckte Karte");
+          });
+          gesperrt = false;
+        }, 900);
+      }
+    }
+
+    function neuStarten() {
+      brett.innerHTML = "";
+      ersteKarte = null;
+      gesperrt = false;
+      versuche = 0;
+      gefundenePaare = 0;
+      anzeigeVersuche.textContent = "0";
+      meldung.textContent = "";
+
+      const karten = mischen([...formen, ...formen]);
+      karten.forEach(form => brett.appendChild(karteErstellen(form)));
+    }
+
+    document.getElementById("neustart").addEventListener("click", neuStarten);
+    neuStarten();
+  </script>
+</body>
+</html>
